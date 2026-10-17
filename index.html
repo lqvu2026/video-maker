@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Video Maker</title>
+<link rel="icon" href="video-maker-icon.png">
+<link rel="apple-touch-icon" sizes="180x180" href="video-maker-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Video Maker">
+<meta name="theme-color" content="#000000">
+<style>
+  :root { color-scheme: dark; --card:#1c1c1e; --field:#2c2c2e; --line:#3a3a3c; --text:#f2f2f7; --muted:#98989f; --accent:#0a84ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#000; color:var(--text); font:16px/1.4 -apple-system, system-ui, "Segoe UI", Roboto, sans-serif; padding-top:env(safe-area-inset-top); padding-bottom:48px; }
+  main { max-width:640px; margin:0 auto; padding:16px; }
+  h1 { font-size:1.6rem; margin:8px 0 2px; }
+  .sub { color:var(--muted); margin:0 0 18px; }
+  .card { background:var(--card); border-radius:14px; padding:14px; margin-bottom:14px; }
+  .card h2 { font-size:.78rem; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); margin:0 0 10px; font-weight:600; }
+  .pick { display:block; text-align:center; padding:13px; border:1px dashed var(--line); border-radius:10px; color:var(--accent); font-weight:600; cursor:pointer; }
+  input[type=file] { display:none; }
+  .name { color:var(--muted); font-size:.9rem; margin-top:8px; word-break:break-all; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
+  .row.first { border-top:0; padding-top:0; }
+  .row label { flex:1; }
+  .row small { display:block; color:var(--muted); font-size:.8rem; }
+  select { background:var(--field); color:var(--text); border:0; border-radius:8px; padding:9px 10px; font-size:1rem; max-width:58%; }
+  input[type=checkbox] { width:24px; height:24px; accent-color:var(--accent); }
+  .previewwrap { text-align:center; }
+  #preview { max-width:100%; max-height:50vh; border-radius:8px; background:#000; border:1px solid var(--line); }
+  .info { color:var(--muted); font-size:.9rem; margin-top:10px; text-align:center; }
+  button, .btn { display:block; width:100%; text-align:center; padding:14px; border:0; border-radius:12px; font-size:1.05rem; font-weight:600; background:var(--accent); color:#fff; text-decoration:none; cursor:pointer; margin-top:10px; }
+  button.secondary, .btn.secondary { background:var(--field); color:var(--text); }
+  button:disabled { opacity:.4; cursor:default; }
+  progress { width:100%; height:10px; margin-top:12px; accent-color:var(--accent); }
+  #status { color:var(--muted); font-size:.9rem; text-align:center; margin-top:6px; }
+  #msg { color:#ff9f0a; margin:10px 0 0; text-align:center; }
+  video { width:100%; max-height:60vh; border-radius:10px; background:#000; }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Video Maker</h1>
+  <p class="sub">Background image + audio = a video as long as the audio. Everything stays on your device.</p>
+
+  <section class="card">
+    <h2>1 · Background image</h2>
+    <label class="pick" for="imgFile">Choose image</label>
+    <input type="file" id="imgFile" accept="image/*">
+    <div class="name" id="imgName">No image chosen</div>
+  </section>
+
+  <section class="card">
+    <h2>2 · Audio</h2>
+    <label class="pick" for="audFile">Choose audio file</label>
+    <input type="file" id="audFile" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg">
+    <div class="name" id="audName">No audio chosen</div>
+  </section>
+
+  <section class="card">
+    <h2>3 · Options</h2>
+    <div class="row first">
+      <label for="ratio">Aspect ratio</label>
+      <select id="ratio">
+        <option value="16:9" selected>16:9 · YouTube</option>
+        <option value="9:16">9:16 · Shorts / Reels</option>
+        <option value="1:1">1:1 · Square</option>
+        <option value="4:3">4:3</option>
+        <option value="3:4">3:4</option>
+        <option value="4:5">4:5 · Instagram</option>
+        <option value="21:9">21:9 · Ultrawide</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="res">Resolution</label>
+      <select id="res">
+        <option value="480">480p</option>
+        <option value="720">720p HD</option>
+        <option value="1080" selected>1080p Full HD</option>
+        <option value="1440">1440p 2K</option>
+        <option value="2160">2160p 4K</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="fit">Image fit<small>Fill crops the edges; Fit keeps the whole image</small></label>
+      <select id="fit">
+        <option value="fill" selected>Fill (crop)</option>
+        <option value="blur">Fit + blurred background</option>
+        <option value="black">Fit + black bars</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="fadeIn">Fade in<small>From black, with the sound</small></label>
+      <input type="checkbox" id="fadeIn" checked>
+    </div>
+    <div class="row">
+      <label for="fadeOut">Fade out<small>To black, with the sound</small></label>
+      <input type="checkbox" id="fadeOut" checked>
+    </div>
+    <div class="row">
+      <label for="fadeLen">Fade length</label>
+      <select id="fadeLen">
+        <option value="0.5">0.5 sec</option>
+        <option value="1">1 sec</option>
+        <option value="2" selected>2 sec</option>
+        <option value="3">3 sec</option>
+        <option value="5">5 sec</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="size">File size<small>Small is plenty for a still image</small></label>
+      <select id="size">
+        <option value="small">Small</option>
+        <option value="balanced" selected>Balanced</option>
+        <option value="high">High quality</option>
+      </select>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Preview</h2>
+    <div class="previewwrap"><canvas id="preview" width="640" height="360"></canvas></div>
+    <div class="info" id="info">Choose an image and an audio file.</div>
+  </section>
+
+  <button id="make" disabled>Create video</button>
+  <button id="cancel" class="secondary" hidden>Cancel</button>
+  <progress id="bar" max="1" value="0" hidden></progress>
+  <div id="status"></div>
+  <p id="msg" hidden></p>
+
+  <section class="card" id="result" hidden style="margin-top:14px">
+    <h2>Your video</h2>
+    <video id="out" controls playsinline></video>
+    <div class="info" id="resInfo"></div>
+    <a id="save" class="btn">Save video</a>
+    <button id="share" class="secondary" hidden>Share…</button>
+  </section>
+
+  <p class="sub" style="text-align:center;margin-top:20px;font-size:.85rem">
+    The video is recorded in real time, so a 4-minute song takes about 4 minutes.
+    Keep this page open and the screen on until it finishes.
+  </p>
+</main>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const RATIOS = { '16:9':[16,9], '9:16':[9,16], '1:1':[1,1], '4:3':[4,3], '3:4':[3,4], '4:5':[4,5], '21:9':[21,9] };
+  const SIZE_FACTOR = { small:0.015, balanced:0.03, high:0.06 };   // bits per pixel per frame
+  const AUDIO_BPS = 160000;
+  const FPS = 30;
+
+  let img = null, audioURL = null, audioName = 'video', duration = 0;
+  let run = null, resultURL = null;
+
+  const fmt = s => { s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  const setMsg = t => { $('msg').textContent = t; $('msg').hidden = !t; };
+
+  function dims() {
+    const [rw, rh] = RATIOS[$('ratio').value];
+    const short = parseInt($('res').value, 10);
+    let w, h;
+    if (rw >= rh) { h = short; w = Math.round(short * rw / rh); }
+    else          { w = short; h = Math.round(short * rh / rw); }
+    const max = Math.max(w, h);
+    if (max > 3840) { const k = 3840 / max; w = Math.round(w * k); h = Math.round(h * k); }
+    w -= w % 2; h -= h % 2;
+    return { w, h };
+  }
+
+  function videoBps(w, h) {
+    return Math.max(300000, Math.round(w * h * FPS * SIZE_FACTOR[$('size').value]));
+  }
+
+  function renderBg(canvas, w, h) {
+    canvas.width = w; canvas.height = h;
+    const c = canvas.getContext('2d');
+    c.fillStyle = '#000'; c.fillRect(0, 0, w, h);
+    if (!img) return;
+    const iw = img.naturalWidth, ih = img.naturalHeight;
+    c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
+    const cover = (cw, ch) => {
+      const s = Math.max(cw / iw, ch / ih), dw = iw * s, dh = ih * s;
+      return [(cw - dw) / 2, (ch - dh) / 2, dw, dh];
+    };
+    const mode = $('fit').value;
+    if (mode === 'fill') { c.drawImage(img, ...cover(w, h)); return; }
+    if (mode === 'blur') {
+      const t = document.createElement('canvas');
+      t.width = 32; t.height = Math.max(2, Math.round(32 * h / w));
+      const tc = t.getContext('2d');
+      tc.imageSmoothingQuality = 'high';
+      tc.drawImage(img, ...cover(t.width, t.height));
+      c.drawImage(t, 0, 0, w, h);
+      c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0, 0, w, h);
+    }
+    const s = Math.min(w / iw, h / ih), dw = iw * s, dh = ih * s;
+    c.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
+
+  function refresh() {
+    const { w, h } = dims();
+    const k = Math.min(1, 720 / Math.max(w, h));
+    renderBg($('preview'), Math.round(w * k), Math.round(h * k));
+    let text = `${w}×${h} · ${$('ratio').value}`;
+    if (duration) {
+      const bytes = (videoBps(w, h) + AUDIO_BPS) * duration / 8;
+      const size = bytes > 1e9 ? (bytes / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(bytes / 1e6)) + ' MB';
+      text += ` · length ${fmt(duration)} · about ${size}`;
+    }
+    $('info').textContent = text;
+    $('make').disabled = !(img && audioURL) || !!run;
+  }
+
+  ['ratio', 'res', 'fit', 'size'].forEach(id => $(id).addEventListener('change', refresh));
+
+  $('imgFile').addEventListener('change', async e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setMsg('');
+    const im = new Image();
+    im.src = URL.createObjectURL(f);
+    try { await im.decode(); } catch (err) { setMsg('Could not read that image. Try a JPG or PNG.'); return; }
+    img = im;
+    $('imgName').textContent = f.name;
+    refresh();
+  });
+
+  $('audFile').addEventListener('change', e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    setMsg('');
+    const url = URL.createObjectURL(f);
+    const a = new Audio();
+    a.preload = 'metadata';
+    a.onloadedmetadata = () => {
+      if (!isFinite(a.duration) || a.duration <= 0) { setMsg('Could not read the length of that audio file. Try an MP3, M4A or WAV.'); return; }
+      if (audioURL) URL.revokeObjectURL(audioURL);
+      audioURL = url;
+      duration = a.duration;
+      audioName = f.name.replace(/\.[^.]+$/, '');
+      $('audName').textContent = `${f.name} · ${fmt(duration)}`;
+      refresh();
+    };
+    a.onerror = () => setMsg('Could not read that audio file.');
+    a.src = url;
+  });
+
+  function pickMime() {
+    const list = [
+      'video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4',
+      'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'
+    ];
+    for (const m of list) { try { if (MediaRecorder.isTypeSupported(m)) return m; } catch (e) {} }
+    return '';
+  }
+
+  function setBusy(b) {
+    $('make').hidden = b; $('cancel').hidden = !b; $('bar').hidden = !b;
+    if (!b) { $('status').textContent = ''; $('bar').value = 0; }
+    ['imgFile', 'audFile', 'ratio', 'res', 'fit', 'fadeIn', 'fadeOut', 'fadeLen', 'size'].forEach(id => $(id).disabled = b);
+  }
+
+  // NOTE: everything up to audio.play() runs synchronously inside the tap,
+  // because iPhone/iPad Safari only allows audio to start from a tap.
+  function make() {
+    if (run) return;
+    setMsg('');
+    $('result').hidden = true;
+
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const probe = document.createElement('canvas');
+    if (!AC || !window.MediaRecorder || !probe.captureStream) {
+      setMsg('This browser cannot record video. Please use the latest Safari or Chrome.');
+      return;
+    }
+
+    const { w, h } = dims();
+    const D = duration;
+    const fadeLen = Math.min(parseFloat($('fadeLen').value), D / 2);
+    const useIn = $('fadeIn').checked, useOut = $('fadeOut').checked;
+    const factor = t => {
+      let f = 1;
+      if (useIn && t < fadeLen) f = Math.min(f, t / fadeLen);
+      if (useOut && t > D - fadeLen) f = Math.min(f, (D - t) / fadeLen);
+      return Math.max(0, Math.min(1, f));
+    };
+
+    const bg = document.createElement('canvas'); renderBg(bg, w, h);
+    const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+
+    const actx = new AC(); actx.resume();
+    const audio = new Audio(); audio.src = audioURL; audio.preload = 'auto';
+    const src = actx.createMediaElementSource(audio);
+    const gain = actx.createGain(); gain.gain.value = factor(0);
+    const dest = actx.createMediaStreamDestination();
+    src.connect(gain); gain.connect(dest);       // not connected to speakers: recording is silent
+
+    const vstream = canvas.captureStream(FPS);
+    const stream = new MediaStream([...vstream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
+    const mime = pickMime();
+    const opts = { videoBitsPerSecond: videoBps(w, h), audioBitsPerSecond: AUDIO_BPS };
+    if (mime) opts.mimeType = mime;
+    let rec;
+    try { rec = new MediaRecorder(stream, opts); } catch (e) { rec = new MediaRecorder(stream); }
+
+    const chunks = [];
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+
+    run = { cancelled: false, msg: 'Cancelled.', raf: 0, wake: null };
+    let started = false;
+
+    const draw = t => {
+      const f = factor(t);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(bg, 0, 0);
+      if (f < 1) { ctx.globalAlpha = 1 - f; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1; }
+      gain.gain.setTargetAtTime(f, actx.currentTime, 0.015);
+    };
+    const frame = () => {
+      const t = audio.currentTime;
+      draw(t);
+      $('bar').value = Math.min(1, t / D);
+      $('status').textContent = `Recording… ${fmt(t)} / ${fmt(D)}`;
+      run.raf = requestAnimationFrame(frame);
+    };
+    const stopRec = () => { if (rec.state !== 'inactive') rec.stop(); };
+
+    rec.onstop = () => {
+      const r = run;
+      cancelAnimationFrame(r.raf);
+      try { audio.pause(); } catch (e) {}
+      stream.getTracks().forEach(t => t.stop());
+      try { actx.close(); } catch (e) {}
+      if (r.wake) { try { r.wake.release(); } catch (e) {} }
+      run = null; setBusy(false); refresh();
+      if (r.cancelled) { setMsg(r.msg); return; }
+      if (!chunks.length) { setMsg('Nothing was recorded. Please try again.'); return; }
+      const type = ((rec.mimeType || mime || 'video/webm').split(';')[0]);
+      showResult(new Blob(chunks, { type }), w, h);
+    };
+
+    audio.addEventListener('playing', () => {
+      if (started) return;
+      started = true;
+      rec.start(1000);
+      run.raf = requestAnimationFrame(frame);
+    });
+    audio.addEventListener('ended', () => {
+      cancelAnimationFrame(run.raf);
+      draw(D);
+      $('bar').value = 1;
+      setTimeout(stopRec, 150);
+    });
+    audio.addEventListener('pause', () => {
+      if (started && run && !audio.ended && !run.cancelled) {
+        run.cancelled = true;
+        run.msg = 'Recording was interrupted (screen locked or page left). Keep this page open and try again.';
+        stopRec();
+      }
+    });
+
+    draw(0);
+    setBusy(true);
+    $('status').textContent = 'Starting…';
+    $('cancel').onclick = () => { if (run) { run.cancelled = true; run.msg = 'Cancelled.'; if (started) stopRec(); else { audio.pause(); rec.start(); stopRec(); } } };
+
+    try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(l => { if (run) run.wake = l; }).catch(() => {}); } catch (e) {}
+
+    audio.play().catch(() => {
+      if (run && !run.cancelled) { run.cancelled = true; run.msg = 'Could not play the audio file. Try another format (MP3 or M4A).'; }
+      if (started) stopRec(); else { try { rec.start(); } catch (e) {} stopRec(); }
+    });
+  }
+
+  function showResult(blob, w, h) {
+    if (resultURL) URL.revokeObjectURL(resultURL);
+    resultURL = URL.createObjectURL(blob);
+    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const fname = `${audioName} ${w}x${h}.${ext}`;
+    $('out').src = resultURL;
+    $('save').href = resultURL;
+    $('save').download = fname;
+    $('resInfo').textContent = `${fname} · ${(blob.size / 1048576).toFixed(1)} MB` +
+      (ext === 'webm' ? ' · WebM format (use Safari or the latest Chrome for MP4)' : '');
+    const file = new File([blob], fname, { type: blob.type });
+    const canShare = navigator.canShare && navigator.canShare({ files: [file] });
+    $('share').hidden = !canShare;
+    $('share').onclick = () => navigator.share({ files: [file] }).catch(() => {});
+    $('result').hidden = false;
+    $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  $('make').addEventListener('click', make);
+  refresh();
+})();
+</script>
+</body>
+</html>
