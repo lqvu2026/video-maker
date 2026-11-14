@@ -38,6 +38,7 @@
   #status { color:var(--muted); font-size:.9rem; text-align:center; margin-top:6px; }
   #msg { color:#ff9f0a; margin:10px 0 0; text-align:center; }
   video { width:100%; max-height:60vh; border-radius:10px; background:#000; }
+  .bgvid { display:block; width:100%; max-width:240px; margin:10px auto 0; border-radius:8px; background:#000; }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -52,6 +53,7 @@
     <input type="file" id="imgFile" accept="image/*,video/*,.mp4,.m4v,.mov">
     <div class="name" id="imgName">No background chosen</div>
     <div class="name">A video background is muted (your audio file is the sound). It loops if shorter than the audio and is cut if longer.</div>
+    <div id="bgHolder"></div>
   </section>
 
   <section class="card">
@@ -238,7 +240,7 @@
     const v = document.createElement('video');
     v.muted = true; v.defaultMuted = true; v.loop = true; v.playsInline = true;
     v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.preload = 'auto';
-    v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+    v.className = 'bgvid'; v.controls = false;
     const url = URL.createObjectURL(f);
     const fail = () => { URL.revokeObjectURL(url); setMsg('Could not read that video. Try an MP4 (H.264) or an iPhone MOV.'); };
     v.onerror = fail;
@@ -246,7 +248,7 @@
       if (!v.videoWidth || !isFinite(v.duration) || v.duration <= 0) { fail(); return; }
       clearVid();
       vid = v; vidURL = url; img = null;
-      document.body.appendChild(v);
+      $('bgHolder').appendChild(v);
       $('imgName').textContent = `${f.name} · video ${fmt(v.duration)}`;
       v.onseeked = () => { v.onseeked = null; refresh(); };
       try { v.currentTime = Math.min(0.1, v.duration / 2); } catch (e) {}
@@ -362,8 +364,22 @@
       if (f < 1) { ctx.globalAlpha = 1 - f; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1; }
       gain.gain.setTargetAtTime(f, actx.currentTime, 0.015);
     };
+    // Phones sometimes pause or freeze a background video; keep it moving.
+    let lastVT = -1, lastMove = performance.now();
+    const keepVideoAlive = () => {
+      if (!vsrc) return;
+      const now = performance.now();
+      if (vsrc.paused || vsrc.ended) { vsrc.play().catch(() => {}); }
+      if (Math.abs(vsrc.currentTime - lastVT) > 0.01) { lastVT = vsrc.currentTime; lastMove = now; }
+      else if (now - lastMove > 600) {
+        lastMove = now;
+        try { vsrc.currentTime = (vsrc.currentTime + 0.2) % vsrc.duration; } catch (e) {}
+        vsrc.play().catch(() => {});
+      }
+    };
     const frame = () => {
       const t = audio.currentTime;
+      keepVideoAlive();
       draw(t);
       $('bar').value = Math.min(1, t / D);
       $('status').textContent = `Recording… ${fmt(t)} / ${fmt(D)}`;
