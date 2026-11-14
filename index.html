@@ -44,13 +44,14 @@
 <body>
 <main>
   <h1>Video Maker</h1>
-  <p class="sub">Background image + audio = a video as long as the audio. Everything stays on your device.</p>
+  <p class="sub">Background image or video + audio = a video as long as the audio. Everything stays on your device.</p>
 
   <section class="card">
-    <h2>1 · Background image</h2>
-    <label class="pick" for="imgFile">Choose image</label>
-    <input type="file" id="imgFile" accept="image/*">
-    <div class="name" id="imgName">No image chosen</div>
+    <h2>1 · Background (image or video)</h2>
+    <label class="pick" for="imgFile">Choose image or video</label>
+    <input type="file" id="imgFile" accept="image/*,video/*,.mp4,.m4v,.mov">
+    <div class="name" id="imgName">No background chosen</div>
+    <div class="name">A video background is muted (your audio file is the sound). It loops if shorter than the audio and is cut if longer.</div>
   </section>
 
   <section class="card">
@@ -123,7 +124,7 @@
   <section class="card">
     <h2>Preview</h2>
     <div class="previewwrap"><canvas id="preview" width="640" height="360"></canvas></div>
-    <div class="info" id="info">Choose an image and an audio file.</div>
+    <div class="info" id="info">Choose a background and an audio file.</div>
   </section>
 
   <button id="make" disabled>Create video</button>
@@ -154,7 +155,7 @@
   const AUDIO_BPS = 160000;
   const FPS = 30;
 
-  let img = null, audioURL = null, audioName = 'video', duration = 0;
+  let img = null, vid = null, vidURL = null, audioURL = null, audioName = 'video', duration = 0;
   let run = null, resultURL = null;
 
   const fmt = s => { s = Math.round(s); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
@@ -176,30 +177,39 @@
     return Math.max(300000, Math.round(w * h * FPS * SIZE_FACTOR[$('size').value]));
   }
 
-  function renderBg(canvas, w, h) {
-    canvas.width = w; canvas.height = h;
-    const c = canvas.getContext('2d');
+  const tmpC = document.createElement('canvas');
+  const bgSource = () => vid || img;
+  const srcSize = src => src === vid ? [vid.videoWidth, vid.videoHeight] : [src.naturalWidth, src.naturalHeight];
+
+  function drawBg(c, w, h, src) {
+    c.globalAlpha = 1;
     c.fillStyle = '#000'; c.fillRect(0, 0, w, h);
-    if (!img) return;
-    const iw = img.naturalWidth, ih = img.naturalHeight;
+    if (!src) return;
+    const [iw, ih] = srcSize(src);
+    if (!iw || !ih) return;
     c.imageSmoothingEnabled = true; c.imageSmoothingQuality = 'high';
     const cover = (cw, ch) => {
       const s = Math.max(cw / iw, ch / ih), dw = iw * s, dh = ih * s;
       return [(cw - dw) / 2, (ch - dh) / 2, dw, dh];
     };
     const mode = $('fit').value;
-    if (mode === 'fill') { c.drawImage(img, ...cover(w, h)); return; }
+    if (mode === 'fill') { c.drawImage(src, ...cover(w, h)); return; }
     if (mode === 'blur') {
-      const t = document.createElement('canvas');
-      t.width = 32; t.height = Math.max(2, Math.round(32 * h / w));
-      const tc = t.getContext('2d');
+      const tw = 32, th = Math.max(2, Math.round(32 * h / w));
+      if (tmpC.width !== tw || tmpC.height !== th) { tmpC.width = tw; tmpC.height = th; }
+      const tc = tmpC.getContext('2d');
       tc.imageSmoothingQuality = 'high';
-      tc.drawImage(img, ...cover(t.width, t.height));
-      c.drawImage(t, 0, 0, w, h);
+      tc.drawImage(src, ...cover(tw, th));
+      c.drawImage(tmpC, 0, 0, w, h);
       c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(0, 0, w, h);
     }
     const s = Math.min(w / iw, h / ih), dw = iw * s, dh = ih * s;
-    c.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    c.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
+
+  function renderBg(canvas, w, h) {
+    canvas.width = w; canvas.height = h;
+    drawBg(canvas.getContext('2d'), w, h, bgSource());
   }
 
   function refresh() {
@@ -212,19 +222,48 @@
       const size = bytes > 1e9 ? (bytes / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(bytes / 1e6)) + ' MB';
       text += ` · length ${fmt(duration)} · about ${size}`;
     }
+    if (vid && duration) text += vid.duration < duration - 0.5 ? ' · video loops' : ' · video cut to audio length';
     $('info').textContent = text;
-    $('make').disabled = !(img && audioURL) || !!run;
+    $('make').disabled = !(bgSource() && audioURL) || !!run;
   }
 
   ['ratio', 'res', 'fit', 'size'].forEach(id => $(id).addEventListener('change', refresh));
+
+  function clearVid() {
+    if (vid) { try { vid.pause(); } catch (e) {} vid.remove(); vid = null; }
+    if (vidURL) { URL.revokeObjectURL(vidURL); vidURL = null; }
+  }
+
+  function loadVideo(f) {
+    const v = document.createElement('video');
+    v.muted = true; v.defaultMuted = true; v.loop = true; v.playsInline = true;
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.preload = 'auto';
+    v.style.cssText = 'position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+    const url = URL.createObjectURL(f);
+    const fail = () => { URL.revokeObjectURL(url); setMsg('Could not read that video. Try an MP4 (H.264) or an iPhone MOV.'); };
+    v.onerror = fail;
+    v.onloadedmetadata = () => {
+      if (!v.videoWidth || !isFinite(v.duration) || v.duration <= 0) { fail(); return; }
+      clearVid();
+      vid = v; vidURL = url; img = null;
+      document.body.appendChild(v);
+      $('imgName').textContent = `${f.name} · video ${fmt(v.duration)}`;
+      v.onseeked = () => { v.onseeked = null; refresh(); };
+      try { v.currentTime = Math.min(0.1, v.duration / 2); } catch (e) {}
+      refresh();
+    };
+    v.src = url;
+  }
 
   $('imgFile').addEventListener('change', async e => {
     const f = e.target.files[0];
     if (!f) return;
     setMsg('');
+    if ((f.type || '').startsWith('video/') || /\.(mp4|m4v|mov|webm)$/i.test(f.name)) { loadVideo(f); return; }
     const im = new Image();
     im.src = URL.createObjectURL(f);
-    try { await im.decode(); } catch (err) { setMsg('Could not read that image. Try a JPG or PNG.'); return; }
+    try { await im.decode(); } catch (err) { setMsg('Could not read that file. Try a JPG, PNG or MP4.'); return; }
+    clearVid();
     img = im;
     $('imgName').textContent = f.name;
     refresh();
@@ -290,7 +329,8 @@
       return Math.max(0, Math.min(1, f));
     };
 
-    const bg = document.createElement('canvas'); renderBg(bg, w, h);
+    const vsrc = vid;
+    const bg = document.createElement('canvas'); if (!vsrc) renderBg(bg, w, h);
     const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d');
 
@@ -318,7 +358,7 @@
     const draw = t => {
       const f = factor(t);
       ctx.globalAlpha = 1;
-      ctx.drawImage(bg, 0, 0);
+      if (vsrc) drawBg(ctx, w, h, vsrc); else ctx.drawImage(bg, 0, 0);
       if (f < 1) { ctx.globalAlpha = 1 - f; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1; }
       gain.gain.setTargetAtTime(f, actx.currentTime, 0.015);
     };
@@ -335,6 +375,7 @@
       const r = run;
       cancelAnimationFrame(r.raf);
       try { audio.pause(); } catch (e) {}
+      if (vsrc) { try { vsrc.pause(); vsrc.currentTime = Math.min(0.1, vsrc.duration / 2); } catch (e) {} }
       stream.getTracks().forEach(t => t.stop());
       try { actx.close(); } catch (e) {}
       if (r.wake) { try { r.wake.release(); } catch (e) {} }
@@ -372,6 +413,7 @@
 
     try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(l => { if (run) run.wake = l; }).catch(() => {}); } catch (e) {}
 
+    if (vsrc) { try { vsrc.currentTime = 0; } catch (e) {} vsrc.play().catch(() => {}); }
     audio.play().catch(() => {
       if (run && !run.cancelled) { run.cancelled = true; run.msg = 'Could not play the audio file. Try another format (MP3 or M4A).'; }
       if (started) stopRec(); else { try { rec.start(); } catch (e) {} stopRec(); }

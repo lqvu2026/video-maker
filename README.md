@@ -3,7 +3,8 @@
 A single-page web app that turns a background image and an audio file into a video exactly as long as the audio. Everything runs in the browser; nothing is uploaded.
 
 ## Features
-- Background image + audio file, video length = audio length
+- Background image or video (MP4/MOV) + audio file, video length = audio length
+- A video background is muted (the audio file is the sound); it loops if shorter than the audio and is cut if longer
 - Fade in / fade out (from and to black, with the sound), fade length 0.5 to 5 seconds
 - Aspect ratios: 16:9 (default), 9:16, 1:1, 4:3, 3:4, 4:5, 21:9
 - Resolutions: 480p, 720p, 1080p (default), 1440p, 4K
