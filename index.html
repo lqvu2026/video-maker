@@ -148,7 +148,7 @@
     The video is recorded in real time, so a 4-minute song takes about 4 minutes.
     Keep this page open and the screen on until it finishes.
   </p>
-  <p class="sub" style="text-align:center;font-size:.75rem">Version 3 · Nov 15</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Version 4 · Nov 15</p>
 </main>
 
 <script>
@@ -183,7 +183,7 @@
 
   const tmpC = document.createElement('canvas');
   const bgSource = () => vid || img;
-  const srcSize = src => src === vid ? [vid.videoWidth, vid.videoHeight] : [src.naturalWidth, src.naturalHeight];
+  const srcSize = src => src.videoWidth ? [src.videoWidth, src.videoHeight] : [src.naturalWidth, src.naturalHeight];
 
   function drawBg(c, w, h, src) {
     c.globalAlpha = 1;
@@ -362,33 +362,53 @@
     const draw = t => {
       const f = factor(t);
       ctx.globalAlpha = 1;
-      if (vsrc) drawBg(ctx, w, h, vsrc); else ctx.drawImage(bg, 0, 0);
+      if (vsrc) drawBg(ctx, w, h, cur); else ctx.drawImage(bg, 0, 0);
       if (f < 1) { ctx.globalAlpha = 1 - f; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1; }
       gain.gain.setTargetAtTime(f, actx.currentTime, 0.015);
     };
-    // Phones sometimes pause or freeze a background video. Keep it moving;
-    // if it still will not play, step through it by seeking instead.
-    let lastVT = -1, lastMove = performance.now(), nudges = 0, seekMode = false;
-    if (vsrc) vsrc.classList.add('floating');   // keep it on screen so the phone keeps decoding it
-    const keepVideoAlive = t => {
+    // A phone may refuse to loop a video, so every loop uses a brand-new copy of the
+    // video that starts from the beginning (no seeking). The copies overlap slightly.
+    const extras = [];
+    const needLoop = !!vsrc && D > vsrc.duration + 0.1;
+    let cur = vsrc, next = null, nextStarted = false, lastVT = -1, lastMove = performance.now();
+    if (vsrc) { vsrc.loop = false; vsrc.classList.add('floating'); }   // floating = stays on screen so the phone keeps decoding it
+    const spawn = () => {
+      const v = document.createElement('video');
+      v.muted = true; v.defaultMuted = true; v.playsInline = true; v.preload = 'auto';
+      v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+      v.className = 'bgvid floating'; v.style.opacity = '0.01';
+      v.src = vidURL;
+      $('bgHolder').appendChild(v); extras.push(v);
+      return v;
+    };
+    const startNext = () => {
+      if (nextStarted) return;
+      if (!next) next = spawn();
+      nextStarted = true;
+      const pr = next.play();
+      if (pr && pr.catch) pr.catch(() => { nextStarted = false; });
+    };
+    const keepVideoAlive = () => {
       if (!vsrc) return;
-      if (seekMode) {
-        if (!vsrc.seeking) { try { vsrc.currentTime = t % vsrc.duration; } catch (e) {} }
+      const now = performance.now();
+      if (needLoop && !next) next = spawn();                                   // preload the next copy
+      if (nextStarted && next && !next.paused && next.currentTime > 0.05) {    // next copy is running: switch to it
+        const old = cur;
+        cur = next; cur.style.opacity = ''; next = null; nextStarted = false;
+        try { old.pause(); } catch (e) {}
+        if (old === vsrc) old.classList.remove('floating');
+        else { old.remove(); extras.splice(extras.indexOf(old), 1); }
+        lastVT = -1; lastMove = now;
         return;
       }
-      const now = performance.now();
-      if (vsrc.paused || vsrc.ended) { vsrc.play().catch(() => {}); }
-      if (Math.abs(vsrc.currentTime - lastVT) > 0.01) { lastVT = vsrc.currentTime; lastMove = now; nudges = 0; }
-      else if (now - lastMove > 600) {
-        lastMove = now;
-        if (++nudges >= 3) { seekMode = true; try { vsrc.pause(); } catch (e) {} return; }
-        try { vsrc.currentTime = (vsrc.currentTime + 0.2) % vsrc.duration; } catch (e) {}
-        vsrc.play().catch(() => {});
-      }
+      if (cur.paused && !cur.ended) cur.play().catch(() => {});
+      if (needLoop && (cur.ended || cur.currentTime > cur.duration - 0.4)) startNext();
+      if (Math.abs(cur.currentTime - lastVT) > 0.01) { lastVT = cur.currentTime; lastMove = now; }
+      else if (needLoop && now - lastMove > 1200) startNext();                 // stuck: start a fresh copy
     };
     const frame = () => {
       const t = audio.currentTime;
-      keepVideoAlive(t);
+      keepVideoAlive();
       draw(t);
       $('bar').value = Math.min(1, t / D);
       $('status').textContent = `Recording… ${fmt(t)} / ${fmt(D)}`;
@@ -400,6 +420,7 @@
       const r = run;
       cancelAnimationFrame(r.raf);
       try { audio.pause(); } catch (e) {}
+      extras.forEach(e => { try { e.pause(); } catch (x) {} e.remove(); }); extras.length = 0;
       if (vsrc) { vsrc.classList.remove('floating'); try { vsrc.pause(); vsrc.currentTime = Math.min(0.1, vsrc.duration / 2); } catch (e) {} }
       stream.getTracks().forEach(t => t.stop());
       try { actx.close(); } catch (e) {}
