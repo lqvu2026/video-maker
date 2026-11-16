@@ -39,6 +39,7 @@
   #msg { color:#ff9f0a; margin:10px 0 0; text-align:center; }
   video { width:100%; max-height:60vh; border-radius:10px; background:#000; }
   .bgvid { display:block; width:100%; max-width:240px; margin:10px auto 0; border-radius:8px; background:#000; }
+  .bgvid.floating { position:fixed; right:12px; bottom:calc(12px + env(safe-area-inset-bottom)); width:120px; margin:0; z-index:10; box-shadow:0 2px 12px rgba(0,0,0,.6); }
   [hidden] { display:none !important; }
 </style>
 </head>
@@ -147,6 +148,7 @@
     The video is recorded in real time, so a 4-minute song takes about 4 minutes.
     Keep this page open and the screen on until it finishes.
   </p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Version 3 · Nov 15</p>
 </main>
 
 <script>
@@ -364,22 +366,29 @@
       if (f < 1) { ctx.globalAlpha = 1 - f; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h); ctx.globalAlpha = 1; }
       gain.gain.setTargetAtTime(f, actx.currentTime, 0.015);
     };
-    // Phones sometimes pause or freeze a background video; keep it moving.
-    let lastVT = -1, lastMove = performance.now();
-    const keepVideoAlive = () => {
+    // Phones sometimes pause or freeze a background video. Keep it moving;
+    // if it still will not play, step through it by seeking instead.
+    let lastVT = -1, lastMove = performance.now(), nudges = 0, seekMode = false;
+    if (vsrc) vsrc.classList.add('floating');   // keep it on screen so the phone keeps decoding it
+    const keepVideoAlive = t => {
       if (!vsrc) return;
+      if (seekMode) {
+        if (!vsrc.seeking) { try { vsrc.currentTime = t % vsrc.duration; } catch (e) {} }
+        return;
+      }
       const now = performance.now();
       if (vsrc.paused || vsrc.ended) { vsrc.play().catch(() => {}); }
-      if (Math.abs(vsrc.currentTime - lastVT) > 0.01) { lastVT = vsrc.currentTime; lastMove = now; }
+      if (Math.abs(vsrc.currentTime - lastVT) > 0.01) { lastVT = vsrc.currentTime; lastMove = now; nudges = 0; }
       else if (now - lastMove > 600) {
         lastMove = now;
+        if (++nudges >= 3) { seekMode = true; try { vsrc.pause(); } catch (e) {} return; }
         try { vsrc.currentTime = (vsrc.currentTime + 0.2) % vsrc.duration; } catch (e) {}
         vsrc.play().catch(() => {});
       }
     };
     const frame = () => {
       const t = audio.currentTime;
-      keepVideoAlive();
+      keepVideoAlive(t);
       draw(t);
       $('bar').value = Math.min(1, t / D);
       $('status').textContent = `Recording… ${fmt(t)} / ${fmt(D)}`;
@@ -391,7 +400,7 @@
       const r = run;
       cancelAnimationFrame(r.raf);
       try { audio.pause(); } catch (e) {}
-      if (vsrc) { try { vsrc.pause(); vsrc.currentTime = Math.min(0.1, vsrc.duration / 2); } catch (e) {} }
+      if (vsrc) { vsrc.classList.remove('floating'); try { vsrc.pause(); vsrc.currentTime = Math.min(0.1, vsrc.duration / 2); } catch (e) {} }
       stream.getTracks().forEach(t => t.stop());
       try { actx.close(); } catch (e) {}
       if (r.wake) { try { r.wake.release(); } catch (e) {} }
