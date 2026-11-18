@@ -166,7 +166,7 @@
     The video is recorded in real time, so a 4-minute song takes about 4 minutes.
     Keep this page open and the screen on until it finishes.
   </p>
-  <p class="sub" style="text-align:center;font-size:.75rem">Version 5 · Nov 18</p>
+  <p class="sub" style="text-align:center;font-size:.75rem">Version 6 · Nov 18</p>
 </main>
 
 <script>
@@ -271,27 +271,30 @@
     c.save();
     if (kind === 'snow') {
       const sp = glow('snow', '255,255,255');
-      for (let i = 0; i < n; i++) {
+      const m = Math.min(Math.round(n * 1.4), fxParams.length);          // more, smaller flakes
+      for (let i = 0; i < m; i++) {
         const q = fxParams[i];
-        const r = (2.2 + q.a * q.a * 8) * sc;                          // radius: mostly small, a few large
+        const r = (1 + q.a * q.a * 3.5) * sc;                            // radius: mostly tiny, a few larger
         const f = (q.b + t * (0.035 + 0.06 * q.a)) % 1;                  // fall position 0..1
         const y = f * (h + 6 * r) - 3 * r;
         const x = q.c * w + Math.sin(t * (0.4 + q.d * 0.9) + q.e * 6.283) * 28 * sc * (0.4 + q.a);
         c.globalAlpha = 0.45 + 0.5 * q.a;
-        c.drawImage(sp, x - r * 1.6, y - r * 1.6, r * 3.2, r * 3.2);
+        c.drawImage(sp, x - r * 1.3, y - r * 1.3, r * 2.6, r * 2.6);
       }
     } else if (kind === 'rain') {
       c.lineCap = 'round';
-      const slope = 0.2;
-      for (let i = 0; i < n; i++) {
+      c.strokeStyle = '#d6e4ff';
+      const slope = 0.09;                                  // gentle wind: drops lean slightly
+      const m = Math.min(Math.round(n * 2.2), fxParams.length);
+      for (let i = 0; i < m; i++) {
         const q = fxParams[i];
-        const len = (22 + q.a * 40) * sc;
-        const f = (q.b + t * (0.9 + 0.9 * q.a)) % 1;
+        const d = q.a * q.a;                               // depth: most drops are far (short, faint), a few are near
+        const len = (12 + d * 52) * sc;
+        const f = (q.b + t * (1.0 + 1.1 * q.a)) % 1;
         const y = f * (h + len) - len;
-        const x = ((q.c * (w + h * slope) + y * slope) % (w + h * slope));
-        c.globalAlpha = 0.18 + 0.32 * q.a;
-        c.strokeStyle = '#cfe0ff';
-        c.lineWidth = (1 + q.a * 1.3) * sc;
+        const x = q.c * (w + h * slope) - h * slope + y * slope;
+        c.globalAlpha = 0.10 + 0.30 * q.a;
+        c.lineWidth = (0.8 + d * 1.2) * sc;
         c.beginPath(); c.moveTo(x, y); c.lineTo(x - len * slope, y - len); c.stroke();
       }
     } else if (kind === 'sparkles') {
