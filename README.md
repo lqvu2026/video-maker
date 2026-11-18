@@ -8,6 +8,7 @@ A single-page web app that turns a background image and an audio file into a vid
 - Fade in / fade out (from and to black, with the sound), fade length 0.5 to 5 seconds
 - Aspect ratios: 16:9 (default), 9:16, 1:1, 4:3, 3:4, 4:5, 21:9
 - Resolutions: 480p, 720p, 1080p (default), 1440p, 4K
+- Effects over the background: falling snow, rain, twinkling stars, fireflies (Light / Medium / Heavy), shown as a live preview
 - Image fit: fill (crop), fit with blurred background, fit with black bars
 - File size: Small / Balanced / High quality (estimate shown before you create)
 - Save or Share the finished video
